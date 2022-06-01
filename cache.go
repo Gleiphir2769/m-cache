@@ -33,7 +33,7 @@ func newCacheWithTimer(de time.Duration, ci time.Duration, m dict.ConcurrentMap,
 	c := newCache(de, m, p)
 	C := &Cache{c}
 	if ci > 0 {
-		tw := timewheel.New(ci, 10)
+		tw := timewheel.New(ci, 3600)
 		tw.Start()
 		c.tw = tw
 	}
