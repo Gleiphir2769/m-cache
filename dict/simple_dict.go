@@ -70,16 +70,16 @@ func (sd *SimpleDict) PutIfExists(key string, val interface{}) (result int) {
 	}
 }
 
-func (sd *SimpleDict) Remove(key string) (result int) {
+func (sd *SimpleDict) Remove(key string) (val interface{}, existed bool) {
 	sd.mu.Lock()
 	defer sd.mu.Unlock()
 
-	if _, ok := sd.table[key]; ok {
+	if v, ok := sd.table[key]; ok {
 		delete(sd.table, key)
 		sd.decreaseCount()
-		return 1
+		return v, true
 	} else {
-		return 0
+		return nil, false
 	}
 }
 

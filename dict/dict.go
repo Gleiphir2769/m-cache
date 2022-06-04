@@ -12,7 +12,7 @@ type ConcurrentMap interface {
 	// PutIfExists return 1 when key is existed (a new key added).
 	PutIfExists(key string, val interface{}) (result int)
 	// Remove return 1 when an existed key removed.
-	Remove(key string) (result int)
+	Remove(key string) (val interface{}, existed bool)
 	// ForEach calls the recallFunc on all elements.
 	ForEach(recallFunc RecallFunc)
 }

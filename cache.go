@@ -57,7 +57,7 @@ func (c *cache) Set(k string, x interface{}, d time.Duration) {
 	if d == DefaultExpiration {
 		d = c.defaultExpiration
 	}
-	if c.items.Len() >= c.policy.Capacity() {
+	if c.items.Len() >= int(c.policy.Capacity()) {
 		ek := c.policy.NowEvict()
 		if c.tw != nil {
 			c.tw.RemoveJob(ek)
@@ -70,6 +70,9 @@ func (c *cache) Set(k string, x interface{}, d time.Duration) {
 		c.tw.AddJob(k, d, func() {
 			c.items.Remove(k)
 			c.policy.Evict(k)
+			if c.onEvicted != nil {
+				c.onEvicted(k, x)
+			}
 		})
 	}
 }
@@ -82,7 +85,7 @@ func (c *cache) Add(k string, x interface{}, d time.Duration) error {
 	if d == DefaultExpiration {
 		d = c.defaultExpiration
 	}
-	if c.items.Len() >= c.policy.Capacity() {
+	if c.items.Len() >= int(c.policy.Capacity()) {
 		ek := c.policy.NowEvict()
 		if c.tw != nil {
 			c.tw.RemoveJob(ek)
@@ -97,6 +100,9 @@ func (c *cache) Add(k string, x interface{}, d time.Duration) error {
 		c.tw.AddJob(k, d, func() {
 			c.items.Remove(k)
 			c.policy.Evict(k)
+			if c.onEvicted != nil {
+				c.onEvicted(k, x)
+			}
 		})
 	}
 	return nil
@@ -106,7 +112,7 @@ func (c *cache) Replace(k string, x interface{}, d time.Duration) error {
 	if d == DefaultExpiration {
 		d = c.defaultExpiration
 	}
-	if c.items.Len() >= c.policy.Capacity() {
+	if c.items.Len() >= int(c.policy.Capacity()) {
 		ek := c.policy.NowEvict()
 		if c.tw != nil {
 			c.tw.RemoveJob(ek)
@@ -121,6 +127,9 @@ func (c *cache) Replace(k string, x interface{}, d time.Duration) error {
 		c.tw.AddJob(k, d, func() {
 			c.items.Remove(k)
 			c.policy.Evict(k)
+			if c.onEvicted != nil {
+				c.onEvicted(k, x)
+			}
 		})
 	}
 	return nil
@@ -137,5 +146,11 @@ func (c *cache) Delete(k string) {
 	if c.tw != nil {
 		c.tw.RemoveJob(ek)
 	}
-	c.items.Remove(ek)
+	if v, existed := c.items.Remove(k); existed && c.onEvicted != nil {
+		go c.onEvicted(k, v)
+	}
+}
+
+func (c *cache) OnEvicted(onEvicted func(string, interface{})) {
+	c.onEvicted = onEvicted
 }

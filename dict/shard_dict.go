@@ -1,14 +1,20 @@
 package dict
 
 import (
+	"crypto/rand"
 	"math"
+	"math/big"
+	insecurerand "math/rand"
+	"os"
 	"sync"
 	"sync/atomic"
 )
 
 type ShardDict struct {
-	table []*Shard
-	count int32
+	table    []*Shard
+	count    int32
+	seed     uint32
+	hashAlgo func(seed uint32, k string) uint32
 }
 
 type Shard struct {
@@ -41,22 +47,54 @@ func MakeShardDict(shardCount int) *ShardDict {
 			m: make(map[string]interface{}),
 		}
 	}
+	max := big.NewInt(0).SetUint64(uint64(math.MaxUint32))
+	rnd, err := rand.Int(rand.Reader, max)
+	var seed uint32
+	if err != nil {
+		os.Stderr.Write([]byte("WARNING: m-cache's MakeShardDict failed to read from the system CSPRNG (/dev/urandom or equivalent.) Your system's security may be compromised. Continuing with an insecure seed.\n"))
+		seed = insecurerand.Uint32()
+	} else {
+		seed = uint32(rnd.Uint64())
+	}
 	d := &ShardDict{
-		count: 0,
-		table: table,
+		count:    0,
+		table:    table,
+		seed:     seed,
+		hashAlgo: djb33,
 	}
 	return d
 }
 
-const prime32 = uint32(16777619)
-
-func fnv32(key string) uint32 {
-	hash := uint32(2166136261)
-	for i := 0; i < len(key); i++ {
-		hash *= prime32
-		hash ^= uint32(key[i])
+// djb2 with better shuffling. 5x faster than FNV with the hash.Hash overhead.
+func djb33(seed uint32, k string) uint32 {
+	var (
+		l = uint32(len(k))
+		d = 5381 + seed + l
+		i = uint32(0)
+	)
+	// Why is all this 5x faster than a for loop?
+	if l >= 4 {
+		for i < l-4 {
+			d = (d * 33) ^ uint32(k[i])
+			d = (d * 33) ^ uint32(k[i+1])
+			d = (d * 33) ^ uint32(k[i+2])
+			d = (d * 33) ^ uint32(k[i+3])
+			i += 4
+		}
 	}
-	return hash
+	switch l - i {
+	case 1:
+	case 2:
+		d = (d * 33) ^ uint32(k[i])
+	case 3:
+		d = (d * 33) ^ uint32(k[i])
+		d = (d * 33) ^ uint32(k[i+1])
+	case 4:
+		d = (d * 33) ^ uint32(k[i])
+		d = (d * 33) ^ uint32(k[i+1])
+		d = (d * 33) ^ uint32(k[i+2])
+	}
+	return d ^ (d >> 16)
 }
 
 func (dict *ShardDict) spread(hashcode uint32) uint32 {
@@ -83,7 +121,7 @@ func (dict *ShardDict) Get(key string) (val interface{}, exists bool) {
 	if dict == nil {
 		panic("dict is nil")
 	}
-	hashcode := fnv32(key)
+	hashcode := dict.hashAlgo(dict.seed, key)
 	index := dict.spread(hashcode)
 	shared := dict.getShared(index)
 	shared.mutex.Lock()
@@ -97,7 +135,7 @@ func (dict *ShardDict) Put(key string, val interface{}) (result int) {
 	if dict == nil {
 		panic("dict is nil")
 	}
-	hashcode := fnv32(key)
+	hashcode := dict.hashAlgo(dict.seed, key)
 	index := dict.spread(hashcode)
 	shared := dict.getShared(index)
 	shared.mutex.Lock()
@@ -125,7 +163,7 @@ func (dict *ShardDict) PutIfAbsent(key string, val interface{}) (result int) {
 	if dict == nil {
 		panic("dict is nil")
 	}
-	hashcode := fnv32(key)
+	hashcode := dict.hashAlgo(dict.seed, key)
 	index := dict.spread(hashcode)
 	shared := dict.getShared(index)
 	shared.mutex.Lock()
@@ -145,7 +183,7 @@ func (dict *ShardDict) PutIfExists(key string, val interface{}) (result int) {
 	if dict == nil {
 		panic("dict is nil")
 	}
-	hashcode := fnv32(key)
+	hashcode := dict.hashAlgo(dict.seed, key)
 	index := dict.spread(hashcode)
 	shared := dict.getShared(index)
 	shared.mutex.Lock()
@@ -159,22 +197,22 @@ func (dict *ShardDict) PutIfExists(key string, val interface{}) (result int) {
 	}
 }
 
-func (dict *ShardDict) Remove(key string) (result int) {
+func (dict *ShardDict) Remove(key string) (val interface{}, existed bool) {
 	if dict == nil {
 		panic("dict is nil")
 	}
-	hashcode := fnv32(key)
+	hashcode := dict.hashAlgo(dict.seed, key)
 	index := dict.spread(hashcode)
 	shared := dict.getShared(index)
 	shared.mutex.Lock()
 	defer shared.mutex.Unlock()
 
-	if _, ok := shared.m[key]; ok {
+	if v, ok := shared.m[key]; ok {
 		delete(shared.m, key)
 		dict.decreaseCount()
-		return 1
+		return v, true
 	} else {
-		return 0
+		return nil, false
 	}
 }
 

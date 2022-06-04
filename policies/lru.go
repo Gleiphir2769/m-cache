@@ -3,31 +3,28 @@ package policies
 import (
 	"container/list"
 	"sync"
+	"sync/atomic"
 )
 
 type LRU struct {
-	maxCap       int
+	maxCap       int64
 	pendingQueue *list.List
 	mu           sync.Mutex
 }
 
-func NewLRU(maxCap int) *LRU {
+func NewLRU(maxCap int64) *LRU {
 	return &LRU{
 		maxCap:       maxCap,
 		pendingQueue: list.New(),
 	}
 }
 
-func (L *LRU) SetCapacity(capacity int) {
-	L.mu.Lock()
-	defer L.mu.Unlock()
-	L.maxCap = capacity
+func (L *LRU) SetCapacity(capacity int64) {
+	atomic.StoreInt64(&L.maxCap, capacity)
 }
 
-func (L *LRU) Capacity() int {
-	L.mu.Lock()
-	defer L.mu.Unlock()
-	return L.maxCap
+func (L *LRU) Capacity() int64 {
+	return atomic.LoadInt64(&L.maxCap)
 }
 
 func (L *LRU) Promote(key string) {

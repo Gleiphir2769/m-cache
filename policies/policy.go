@@ -2,9 +2,9 @@ package policies
 
 type EvictionPolicy interface {
 	// SetCapacity sets m-cache max capacity.
-	SetCapacity(capacity int)
+	SetCapacity(capacity int64)
 	// Capacity returns m-cache capacity.
-	Capacity() int
+	Capacity() int64
 	// Promote promotes the 'm-cache key', if 'm-cache key' doesn't exist, it will create the 'm-cache key'.
 	Promote(key string)
 	// PromoteIfExist promotes the 'm-cache key' if 'm-cache key' exists.

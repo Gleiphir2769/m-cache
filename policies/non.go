@@ -10,10 +10,10 @@ func NewNon() *Non {
 	return &Non{}
 }
 
-func (n *Non) SetCapacity(capacity int) {
+func (n *Non) SetCapacity(capacity int64) {
 }
 
-func (n *Non) Capacity() int {
+func (n *Non) Capacity() int64 {
 	return math.MaxInt64
 }
 

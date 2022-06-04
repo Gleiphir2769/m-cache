@@ -164,25 +164,25 @@ func TestRacing(t *testing.T) {
 }
 
 type MockLRU struct {
-	maxCap       int
+	maxCap       int64
 	pendingQueue *list.List
 	mu           sync.Mutex
 }
 
-func NewMockLRU(maxCap int) *MockLRU {
+func NewMockLRU(maxCap int64) *MockLRU {
 	return &MockLRU{
 		maxCap:       maxCap,
 		pendingQueue: list.New(),
 	}
 }
 
-func (L *MockLRU) SetCapacity(capacity int) {
+func (L *MockLRU) SetCapacity(capacity int64) {
 	L.mu.Lock()
 	defer L.mu.Unlock()
 	L.maxCap = capacity
 }
 
-func (L *MockLRU) Capacity() int {
+func (L *MockLRU) Capacity() int64 {
 	L.mu.Lock()
 	defer L.mu.Unlock()
 	return L.maxCap
